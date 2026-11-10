@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="스탠바이">
+<meta name="theme-color" content="#08090b">
+<title>데스크 스탠바이</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* ===== 설정값은 아래 <script> 맨 위 CONFIG에서 바꿔 ===== */
+/* Layout: 가로 기준 2분할 — 왼쪽은 날짜·시계·현재 날씨·시간별 예보, 오른쪽은 달력/주간 날씨 카드 */
+:root {
+  color-scheme: dark;
+  --bg: #08090b;
+  --panel: #15171b;
+  --line: #262a30;
+  --fg: #f1eee8;
+  --mute: #858991;
+  --accent: #ffb547;
+  --sun: #ff6b5e;
+  --sat: #7aa7ff;
+  --rain: #7aa7ff;
+  --font-clock: "Big Shoulders Display", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); }
+body {
+  font-family: var(--font-ui);
+  overflow: hidden;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 16px;
+  padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* ── 왼쪽: 날짜 · 시계 · 날씨 ── */
+.face { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.date { font-size: clamp(14px, 4.4vh, 20px); font-weight: 500; color: var(--accent); letter-spacing: .02em; }
+.time {
+  display: flex; align-items: flex-start; gap: .06em; text-align: left;
+  font-family: var(--font-clock); font-weight: 700;
+  font-size: min(40vh, 19vw); line-height: .82; letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+.ampm { white-space: nowrap; font-family: var(--font-ui); font-size: .13em; font-weight: 600; color: var(--mute); margin-top: .35em; letter-spacing: .04em; }
+
+.weather { display: flex; align-items: center; gap: 10px; margin-top: 8px; min-width: 0; }
+.wicon { flex: 0 0 auto; width: clamp(30px, 10vh, 40px); height: clamp(30px, 10vh, 40px); color: var(--accent); }
+.wicon svg, .ico svg { width: 100%; height: 100%; display: block; }
+.temp { font-family: var(--font-clock); font-weight: 700; font-size: clamp(30px, 10.5vh, 42px); line-height: 1; font-variant-numeric: tabular-nums; }
+.wtext { min-width: 0; display: grid; gap: 1px; }
+.wdesc { font-size: 14px; font-weight: 600; }
+.wmeta { font-size: 11.5px; color: var(--mute); font-variant-numeric: tabular-nums; }
+.wmeta b { color: var(--fg); font-weight: 500; }
+.wmeta span { white-space: nowrap; }
+
+.hourly { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin-top: 8px; max-width: 380px; }
+.h { display: grid; justify-items: center; gap: 2px; padding: 6px 0 5px; border-radius: 12px; background: var(--panel); font-variant-numeric: tabular-nums; }
+.h .t { font-size: 10.5px; color: var(--mute); }
+.h .ico { width: 20px; height: 20px; color: var(--accent); }
+.h .v { font-size: 13px; font-weight: 600; }
+.h .p { font-size: 10px; color: var(--mute); }
+.h .p.wet { color: var(--rain); }
+
+/* ── 오른쪽 카드 ── */
+.card { min-width: 0; min-height: 0; background: var(--panel); border-radius: 26px; padding: 12px 14px 11px; display: flex; flex-direction: column; gap: 6px; }
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.nav h2 { margin: 0; font-size: 15px; font-weight: 600; white-space: nowrap; min-width: 6.2em; text-align: center; }
+.nav h2 span { color: var(--accent); }
+.arrow { width: 28px; height: 28px; border-radius: 50%; color: var(--mute); display: grid; place-items: center; }
+.arrow svg { width: 14px; height: 14px; }
+.arrow:active { background: var(--line); }
+.today-btn { white-space: nowrap; font-size: 11px; color: var(--bg); background: var(--accent); border-radius: 999px; padding: 3px 8px; margin-left: 4px; }
+.seg { display: flex; background: var(--bg); border-radius: 999px; padding: 2px; flex: 0 0 auto; }
+.seg button { font-size: 11.5px; font-weight: 600; color: var(--mute); padding: 4px 10px; border-radius: 999px; }
+.seg button[aria-pressed="true"] { background: var(--line); color: var(--fg); }
+.view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+
+/* 달력 */
+.grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; font-variant-numeric: tabular-nums; touch-action: pan-y; }
+.wd { font-size: 10px; font-weight: 600; color: var(--mute); letter-spacing: .06em; align-self: center; padding-bottom: 2px; }
+.d { display: grid; place-items: center; font-size: clamp(11px, 3.6vh, 14px); font-weight: 500; }
+.d span { display: grid; place-items: center; width: 1.95em; height: 1.95em; border-radius: 50%; }
+.d.other { opacity: .28; }
+.sun, .hol { color: var(--sun); }
+.sat { color: var(--sat); }
+.d.today span { background: var(--accent); color: var(--bg); font-weight: 700; }
+.foot { font-size: 11px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.foot b { color: var(--sun); font-weight: 500; }
+
+/* 주간 날씨 */
+.week { flex: 1; min-height: 0; display: grid; grid-auto-rows: minmax(0, 1fr); }
+.row { display: grid; grid-template-columns: 3.3em 22px 2.6em 2.2em minmax(30px, 1fr) 2.2em; align-items: center; gap: 8px; font-size: 13px; font-variant-numeric: tabular-nums; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; }
+.row .day { font-weight: 600; white-space: nowrap; }
+.row .day small { font-weight: 400; color: var(--mute); margin-left: 3px; font-size: 10.5px; }
+.row .ico { width: 22px; height: 22px; color: var(--accent); }
+.row .p { font-size: 11px; color: var(--mute); text-align: right; }
+.row .p.wet { color: var(--rain); }
+.row .lo { color: var(--mute); text-align: right; }
+.row .hi { text-align: left; }
+.range { position: relative; height: 5px; border-radius: 5px; background: var(--line); }
+.range i { position: absolute; top: 0; bottom: 0; border-radius: 5px; background: linear-gradient(90deg, var(--rain), var(--accent)); }
+
+/* 시계 크게 보기 (시계 탭) */
+body.full .app { grid-template-columns: minmax(0, 1fr); }
+body.full .card, body.full .hourly { display: none; }
+body.full .face { align-items: center; }
+body.full .time { font-size: min(60vh, 32vw); }
+
+/* 세로 화면 */
+@media (max-aspect-ratio: 1/1) {
+  body { overflow-y: auto; }
+  .app { height: auto; min-height: 100%; grid-template-columns: minmax(0, 1fr); align-content: start; padding-block: 24px; }
+  .time { font-size: min(34vw, 150px); }
+  .hourly { max-width: none; }
+  .card { height: 340px; }
+  .hint { display: block !important; }
+}
+.hint { display: none; margin: 0; padding: 0 16px 20px; text-align: center; font-size: 12px; color: var(--mute); }
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="face">
+    <div class="date" id="date">&nbsp;</div>
+    <button class="time" id="time" aria-label="시계 크게 보기 전환">
+      <span class="ampm" id="ampm"></span><span id="hm"></span>
+    </button>
+    <div class="weather" aria-live="polite">
+      <div class="wicon" id="wicon"></div>
+      <div class="temp" id="temp">--°</div>
+      <div class="wtext">
+        <div class="wdesc" id="wdesc">날씨 불러오는 중</div>
+        <div class="wmeta" id="wmeta">&nbsp;</div>
+      </div>
+    </div>
+    <div class="hourly" id="hourly" aria-label="시간별 예보"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div class="nav" id="calNav">
+        <button class="arrow" id="prevM" aria-label="이전 달"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg></button>
+        <h2 id="calTitle"></h2>
+        <button class="arrow" id="nextM" aria-label="다음 달"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg></button>
+        <button class="today-btn" id="todayBtn" hidden>오늘</button>
+      </div>
+      <div class="nav" id="weekNav" hidden><h2 style="text-align:left">주간 날씨</h2></div>
+      <div class="seg" role="group" aria-label="보기 전환">
+        <button id="tabCal" aria-pressed="true">달력</button>
+        <button id="tabWeek" aria-pressed="false">주간</button>
+      </div>
+    </div>
+
+    <div class="view" id="calView">
+      <div class="grid" id="grid"></div>
+      <div class="foot" id="next"></div>
+    </div>
+    <div class="view" id="weekView" hidden>
+      <div class="week" id="week"></div>
+      <div class="foot" id="weekFoot"></div>
+    </div>
+  </section>
+</main>
+<p class="hint">가로로 눕혀서 충전기에 세워두면 스탠바이처럼 보여요</p>
+
+<script>
+/* ===== 설정 ===== */
+const CONFIG = {
+  place: '강남구',
+  lat: 37.4979,   // 강남역 기준
+  lon: 127.0276,
+  refreshMin: 15, // 날씨 갱신 간격(분)
+  hourStep: 3,    // 시간별 예보 간격(시간)
+  backToTodaySec: 60 // 다른 달 보다가 이 시간 지나면 이번 달로 복귀
+};
+/* 공휴일: 'YYYY-MM-DD': '이름'  — 2028년부터는 여기에 추가 */
+const HOLIDAYS = {
+  '2026-01-01': '신정', '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
+  '2026-03-01': '삼일절', '2026-03-02': '대체공휴일', '2026-05-01': '노동절', '2026-05-05': '어린이날',
+  '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일', '2026-06-03': '지방선거', '2026-06-06': '현충일',
+  '2026-08-15': '광복절', '2026-08-17': '대체공휴일', '2026-09-24': '추석 연휴', '2026-09-25': '추석',
+  '2026-09-26': '추석 연휴', '2026-09-28': '대체공휴일', '2026-10-03': '개천절', '2026-10-05': '대체공휴일',
+  '2026-10-09': '한글날', '2026-12-25': '성탄절',
+  '2027-01-01': '신정', '2027-02-06': '설날 연휴', '2027-02-07': '설날', '2027-02-08': '설날 연휴',
+  '2027-02-09': '대체공휴일', '2027-03-01': '삼일절', '2027-05-01': '노동절', '2027-05-05': '어린이날',
+  '2027-05-13': '부처님오신날', '2027-06-06': '현충일', '2027-08-15': '광복절', '2027-08-16': '대체공휴일',
+  '2027-09-14': '추석 연휴', '2027-09-15': '추석', '2027-09-16': '추석 연휴', '2027-10-03': '개천절',
+  '2027-10-04': '대체공휴일', '2027-10-09': '한글날', '2027-10-11': '대체공휴일', '2027-12-25': '성탄절',
+  '2027-12-27': '대체공휴일'
+};
+
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const DAYS = '일월화수목금토';
+  const pad = (n) => String(n).padStart(2, '0');
+  const key = (y, m, d) => { const t = new Date(y, m, d); return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`; };
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  /* ── 시계 ── */
+  let lastDay = '', lastHour = -1;
+  function renderClock() {
+    const n = new Date();
+    const h = n.getHours();
+    $('ampm').textContent = h < 12 ? '오전' : '오후';
+    $('hm').textContent = (h % 12 || 12) + ':' + pad(n.getMinutes());
+    const today = key(n.getFullYear(), n.getMonth(), n.getDate());
+    if (today !== lastDay) {
+      lastDay = today;
+      const hol = HOLIDAYS[today];
+      $('date').textContent = `${n.getMonth() + 1}월 ${n.getDate()}일 ${DAYS[n.getDay()]}요일${hol ? ' · ' + hol : ''}`;
+      viewYM = { y: n.getFullYear(), m: n.getMonth() };
+      renderCalendar();
+    }
+    if (h !== lastHour) { lastHour = h; if (weatherData) renderForecast(weatherData); }
+  }
+
+  /* ── 달력 ── */
+  let viewYM = { y: new Date().getFullYear(), m: new Date().getMonth() };
+  let backTimer = null;
+  function renderCalendar() {
+    const now = new Date();
+    const { y, m } = viewYM;
+    const isThis = y === now.getFullYear() && m === now.getMonth();
+    const todayKey = key(now.getFullYear(), now.getMonth(), now.getDate());
+    $('calTitle').innerHTML = `${y}년 <span>${m + 1}월</span>`;
+    $('todayBtn').hidden = isThis;
+
+    const grid = $('grid');
+    grid.textContent = '';
+    DAYS.split('').forEach((d, i) => {
+      const el = document.createElement('div');
+      el.className = 'wd' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '');
+      el.textContent = d;
+      grid.append(el);
+    });
+    const first = new Date(y, m, 1).getDay();
+    const last = new Date(y, m + 1, 0).getDate();
+    const weeks = Math.ceil((first + last) / 7);
+    grid.style.gridTemplateRows = `auto repeat(${weeks}, minmax(0, 1fr))`;
+    // 앞뒤 달 날짜도 흐리게 채움
+    for (let i = 0; i < weeks * 7; i++) {
+      const date = new Date(y, m, i - first + 1);
+      const k = key(date.getFullYear(), date.getMonth(), date.getDate());
+      const dow = date.getDay();
+      const hol = HOLIDAYS[k];
+      const el = document.createElement('div');
+      el.className = 'd'
+        + (date.getMonth() !== m ? ' other' : '')
+        + (k === todayKey ? ' today' : '')
+        + (hol ? ' hol' : dow === 0 ? ' sun' : dow === 6 ? ' sat' : '');
+      if (hol) el.title = hol;
+      const s = document.createElement('span');
+      s.textContent = date.getDate();
+      el.append(s);
+      grid.append(el);
+    }
+
+    // 하단: 이번 달이면 다음 휴일, 다른 달이면 그 달 공휴일 목록
+    const foot = $('next');
+    if (isThis) {
+      const nextKey = Object.keys(HOLIDAYS).sort().find((k) => k > todayKey);
+      if (nextKey) {
+        const [ny, nm, nd] = nextKey.split('-').map(Number);
+        const diff = Math.round((new Date(ny, nm - 1, nd) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
+        foot.innerHTML = `다음 휴일 <b>${nm}월 ${nd}일 ${HOLIDAYS[nextKey]}</b> · ${diff}일 남음`;
+      } else foot.textContent = '공휴일 목록을 업데이트해 주세요';
+    } else {
+      const prefix = `${y}-${pad(m + 1)}-`;
+      const list = Object.keys(HOLIDAYS).sort().filter((k) => k.startsWith(prefix))
+        .map((k) => `${Number(k.slice(8))}일 ${HOLIDAYS[k]}`);
+      foot.innerHTML = list.length ? `이달 휴일 <b>${list.join(', ')}</b>` : '이달은 공휴일이 없어요';
+    }
+
+    clearTimeout(backTimer);
+    if (!isThis) backTimer = setTimeout(goToday, CONFIG.backToTodaySec * 1000);
+  }
+  function shiftMonth(d) {
+    const t = new Date(viewYM.y, viewYM.m + d, 1);
+    viewYM = { y: t.getFullYear(), m: t.getMonth() };
+    renderCalendar();
+  }
+  function goToday() { const n = new Date(); viewYM = { y: n.getFullYear(), m: n.getMonth() }; renderCalendar(); }
+  $('prevM').addEventListener('click', () => shiftMonth(-1));
+  $('nextM').addEventListener('click', () => shiftMonth(1));
+  $('todayBtn').addEventListener('click', goToday);
+  let x0 = null, y0 = null;
+  $('grid').addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  $('grid').addEventListener('touchend', (e) => {
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) shiftMonth(dx < 0 ? 1 : -1);
+    x0 = null;
+  });
+
+  /* ── 카드 탭: 달력 / 주간 ── */
+  function setTab(t) {
+    const cal = t === 'cal';
+    $('calView').hidden = !cal; $('calNav').hidden = !cal;
+    $('weekView').hidden = cal; $('weekNav').hidden = cal;
+    $('tabCal').setAttribute('aria-pressed', String(cal));
+    $('tabWeek').setAttribute('aria-pressed', String(!cal));
+    store.set('ds.tab', t);
+  }
+  $('tabCal').addEventListener('click', () => setTab('cal'));
+  $('tabWeek').addEventListener('click', () => setTab('week'));
+  setTab(store.get('ds.tab', 'cal'));
+
+  /* ── 날씨 (Open-Meteo, 키 필요 없음) ── */
+  const ICON = {
+    sun: '<circle cx="24" cy="24" r="8"/><path d="M24 6v5M24 37v5M6 24h5M37 24h5M11.3 11.3l3.5 3.5M33.2 33.2l3.5 3.5M11.3 36.7l3.5-3.5M33.2 14.8l3.5-3.5"/>',
+    moon: '<path d="M33 30.5A13 13 0 0 1 19.5 13a13 13 0 1 0 13.5 17.5z"/>',
+    partly: '<path d="M17 9v3M8.5 12.5l2 2M5 21h3M25.5 12.5l-2 2"/><path d="M12.6 22.5A6 6 0 1 1 23.4 18"/><path d="M16 38h18a7 7 0 0 0 0-14 9 9 0 0 0-17 3 5.5 5.5 0 0 0-1 11z"/>',
+    cloud: '<path d="M14 36h20a8 8 0 0 0 0-16 10 10 0 0 0-19 3.5A6.3 6.3 0 0 0 14 36z"/>',
+    fog: '<path d="M14 26h20a8 8 0 0 0 0-16 10 10 0 0 0-19 3.5A6.3 6.3 0 0 0 14 26z"/><path d="M9 32h30M13 38h22"/>',
+    rain: '<path d="M14 28h20a8 8 0 0 0 0-16 10 10 0 0 0-19 3.5A6.3 6.3 0 0 0 14 28z"/><path d="M17 33l-2 5M25 33l-2 5M33 33l-2 5"/>',
+    snow: '<path d="M14 28h20a8 8 0 0 0 0-16 10 10 0 0 0-19 3.5A6.3 6.3 0 0 0 14 28z"/><path d="M17 34v4M15 36h4M25 34v4M23 36h4M33 34v4M31 36h4"/>',
+    storm: '<path d="M14 28h20a8 8 0 0 0 0-16 10 10 0 0 0-19 3.5A6.3 6.3 0 0 0 14 28z"/><path d="M25 30l-4 6h6l-4 6"/>'
+  };
+  function describe(code, isDay) {
+    if (code === 0) return ['맑음', isDay ? 'sun' : 'moon'];
+    if (code === 1) return ['대체로 맑음', isDay ? 'sun' : 'moon'];
+    if (code === 2) return ['구름 조금', 'partly'];
+    if (code === 3) return ['흐림', 'cloud'];
+    if (code === 45 || code === 48) return ['안개', 'fog'];
+    if (code >= 51 && code <= 57) return ['이슬비', 'rain'];
+    if (code === 61) return ['약한 비', 'rain'];
+    if (code === 63) return ['비', 'rain'];
+    if (code === 65) return ['강한 비', 'rain'];
+    if (code === 66 || code === 67) return ['어는 비', 'rain'];
+    if (code === 71) return ['약한 눈', 'snow'];
+    if (code === 73) return ['눈', 'snow'];
+    if (code === 75) return ['많은 눈', 'snow'];
+    if (code === 77) return ['싸락눈', 'snow'];
+    if (code >= 80 && code <= 82) return ['소나기', 'rain'];
+    if (code === 85 || code === 86) return ['눈 소나기', 'snow'];
+    if (code >= 95) return ['뇌우', 'storm'];
+    return ['–', 'cloud'];
+  }
+  const svg = (name) => `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`;
+  const popCls = (p) => (p != null && p >= 40 ? 'p wet' : 'p');
+
+  let weatherData = null;
+  function renderCurrent(w, stale) {
+    const c = w.current, dl = w.daily;
+    const [desc, icon] = describe(c.weather_code, c.is_day === 1);
+    $('wicon').innerHTML = svg(icon);
+    $('temp').textContent = Math.round(c.temperature_2m) + '°';
+    $('wdesc').textContent = desc;
+    const t = new Date(w.fetchedAt);
+    const pop = dl.precipitation_probability_max[0];
+    $('wmeta').innerHTML =
+      `<span>체감 <b>${Math.round(c.apparent_temperature)}°</b></span> · ` +
+      `<span>최고 <b>${Math.round(dl.temperature_2m_max[0])}°</b> 최저 <b>${Math.round(dl.temperature_2m_min[0])}°</b></span>` +
+      (pop != null ? ` · <span>강수 <b>${pop}%</b></span>` : '') +
+      `<br><span>${CONFIG.place} · ${pad(t.getHours())}:${pad(t.getMinutes())} 기준${stale ? ' (연결 끊김)' : ''}</span>`;
+  }
+  function renderForecast(w) {
+    // 시간별: 지금 이후 CONFIG.hourStep 간격으로 5칸
+    const hr = w.hourly, n = new Date();
+    const nowKey = `${key(n.getFullYear(), n.getMonth(), n.getDate())}T${pad(n.getHours())}:00`;
+    let idx = hr.time.indexOf(nowKey);
+    if (idx < 0) idx = hr.time.findIndex((t) => t > nowKey) - 1;
+    const box = $('hourly');
+    box.textContent = '';
+    for (let k = 1; k <= 5; k++) {
+      const i = idx + k * CONFIG.hourStep;
+      if (idx < -1 || i >= hr.time.length) break;
+      const hh = Number(hr.time[i].slice(11, 13));
+      const icon = describe(hr.weather_code[i], hr.is_day[i] === 1)[1];
+      const p = hr.precipitation_probability[i];
+      const el = document.createElement('div');
+      el.className = 'h';
+      el.innerHTML = `<span class="t">${hh === 0 ? '자정' : hh + '시'}</span><span class="ico">${svg(icon)}</span>` +
+        `<span class="v">${Math.round(hr.temperature_2m[i])}°</span><span class="${popCls(p)}">${p != null ? p + '%' : ''}</span>`;
+      box.append(el);
+    }
+
+    // 주간: 7일
+    const dl = w.daily, wk = $('week');
+    wk.textContent = '';
+    const lo = Math.min(...dl.temperature_2m_min), hi = Math.max(...dl.temperature_2m_max);
+    const span = Math.max(1, hi - lo);
+    const todayKey = key(n.getFullYear(), n.getMonth(), n.getDate());
+    dl.time.forEach((dk, i) => {
+      const [yy, mm, dd] = dk.split('-').map(Number);
+      const dow = new Date(yy, mm - 1, dd).getDay();
+      const cls = HOLIDAYS[dk] || dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
+      const label = dk === todayKey ? '오늘' : DAYS[dow];
+      const icon = describe(dl.weather_code[i], true)[1];
+      const p = dl.precipitation_probability_max[i];
+      const a = dl.temperature_2m_min[i], b = dl.temperature_2m_max[i];
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML =
+        `<span class="day ${cls}">${label}<small>${dd}</small></span>` +
+        `<span class="ico">${svg(icon)}</span>` +
+        `<span class="${popCls(p)}">${p != null ? p + '%' : ''}</span>` +
+        `<span class="lo">${Math.round(a)}°</span>` +
+        `<span class="range"><i style="left:${((a - lo) / span) * 100}%;right:${((hi - b) / span) * 100}%"></i></span>` +
+        `<span class="hi">${Math.round(b)}°</span>`;
+      wk.append(row);
+    });
+    const t = new Date(w.fetchedAt);
+    $('weekFoot').textContent = `${CONFIG.place} · ${pad(t.getHours())}:${pad(t.getMinutes())} 기준 · 파란 %는 비 올 확률 40% 이상`;
+  }
+  function renderWeather(w, stale) {
+    weatherData = w;
+    renderCurrent(w, stale);
+    renderForecast(w);
+  }
+
+  let lastFetch = 0;
+  async function loadWeather() {
+    lastFetch = Date.now();
+    const url = 'https://api.open-meteo.com/v1/forecast'
+      + `?latitude=${CONFIG.lat}&longitude=${CONFIG.lon}`
+      + '&current=temperature_2m,apparent_temperature,weather_code,is_day'
+      + '&hourly=temperature_2m,weather_code,precipitation_probability,is_day'
+      + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max'
+      + '&timezone=Asia%2FSeoul&forecast_days=7';
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(res.status);
+      const w = await res.json();
+      w.fetchedAt = Date.now();
+      store.set('ds.weather2', w);
+      renderWeather(w, false);
+    } catch (e) {
+      const cached = store.get('ds.weather2', null);
+      if (cached) renderWeather(cached, true);
+      else {
+        $('wdesc').textContent = '날씨를 못 불러왔어요';
+        $('wmeta').textContent = '인터넷 연결을 확인해 주세요. 15분 뒤 다시 시도해요.';
+        $('wicon').innerHTML = svg('cloud');
+        $('weekFoot').textContent = '날씨를 못 불러왔어요';
+      }
+    }
+  }
+  const cached = store.get('ds.weather2', null);
+  if (cached) renderWeather(cached, false);
+  loadWeather();
+  setInterval(loadWeather, CONFIG.refreshMin * 60 * 1000);
+
+  /* ── 화면 켜두기: 첫 터치 때 요청 ── */
+  let lock = null, wanted = false;
+  async function keepAwake() {
+    if (!('wakeLock' in navigator) || lock) return;
+    try { lock = await navigator.wakeLock.request('screen'); wanted = true; lock.addEventListener('release', () => { lock = null; }); } catch (e) {}
+  }
+  document.addEventListener('pointerdown', keepAwake, { passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (wanted) keepAwake();
+    if (Date.now() - lastFetch > 10 * 60 * 1000) loadWeather();
+    lastDay = ''; renderClock();
+  });
+
+  /* ── 시계 크게 보기 ── */
+  $('time').addEventListener('click', () => document.body.classList.toggle('full'));
+
+  renderClock();
+  setTimeout(function loop() { renderClock(); setTimeout(loop, 1000 - (Date.now() % 1000)); }, 1000 - (Date.now() % 1000));
+})();
+</script>
+</body>
+</html>
